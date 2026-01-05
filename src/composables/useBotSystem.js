@@ -1,3 +1,4 @@
+// src/composables/useBotSystem.js
 import { ref, watch } from 'vue';
 
 export function useBotSystem() {
@@ -5,7 +6,7 @@ export function useBotSystem() {
   const complete = ref([]);
   const bots = ref([]);
   let orderCounter = 1;
-  let botCounter = 1;
+  let botCounter = 1; // Internal tracker
 
   const addOrder = (type) => {
     const newOrder = { id: orderCounter++, type };
@@ -19,41 +20,44 @@ export function useBotSystem() {
 
   const addBot = () => {
     bots.value.push({
-      id: botCounter++,
+      id: botCounter++, // ID stays unique
       status: 'IDLE',
       currentOrder: null,
       timer: null,
-      startTime: null, // Track when cooking started
-      duration: 10000  // 10 seconds
+      startTime: null,
+      duration: 10000 
     });
   };
 
   const removeBot = () => {
     const bot = bots.value.pop();
-    botCounter--;
+    // Do NOT botCounter-- here. Keep IDs unique like a serial number.
     if (bot && bot.status === 'PROCESSING') {
       clearTimeout(bot.timer);
-      pending.value.unshift(bot.currentOrder); // Re-queue order
+      pending.value.unshift(bot.currentOrder); 
     }
   };
 
-  // The "Auto-Cook" Manager
+  // FIXED: Auto-Cook Manager now loops through all available bots
   watch([pending, bots], () => {
-    const idleBot = bots.value.find(b => b.status === 'IDLE');
-    if (idleBot && pending.value.length > 0) {
-      const order = pending.value.shift();
-      idleBot.status = 'PROCESSING';
-      idleBot.currentOrder = order;
-      idleBot.startTime = Date.now();
+    // Check all bots that are currently IDLE
+    bots.value.forEach(bot => {
+      if (bot.status === 'IDLE' && pending.value.length > 0) {
+        const order = pending.value.shift();
+        
+        bot.status = 'PROCESSING';
+        bot.currentOrder = order;
+        bot.startTime = Date.now();
 
-      idleBot.timer = setTimeout(() => {
-        complete.value.push(order);
-        idleBot.status = 'IDLE';
-        idleBot.currentOrder = null;
-        idleBot.timer = null;
-        idleBot.startTime = null;
-      }, 10000);
-    }
+        bot.timer = setTimeout(() => {
+          complete.value.push(order);
+          bot.status = 'IDLE';
+          bot.currentOrder = null;
+          bot.timer = null;
+          bot.startTime = null;
+        }, 10000);
+      }
+    });
   }, { deep: true });
 
   return { pending, complete, bots, addOrder, addBot, removeBot };
